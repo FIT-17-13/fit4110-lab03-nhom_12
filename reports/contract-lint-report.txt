@@ -3,6 +3,8 @@
 
 
 c:/DVKN-CNNT/lab3/fit4110-lab03-nhom_12/contracts/core-business.openapi.yaml
- 755:15  warning  oas3-unused-component  Potentially unused component has been detected.  components.responses.Forbidden
+ 281:10  warning  operation-description  Operation "description" must be present and non-empty string.  paths./webhooks/policyUpdated.post
+ 281:10  warning  operation-tags         Operation must have non-empty "tags" array.                    paths./webhooks/policyUpdated.post
+ 770:15  warning  oas3-unused-component  Potentially unused component has been detected.                components.responses.Forbidden
 
-✖ 1 problem (0 errors, 1 warning, 0 infos, 0 hints)
+✖ 3 problems (0 errors, 3 warnings, 0 infos, 0 hints)
