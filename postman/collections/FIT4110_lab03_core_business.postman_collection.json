@@ -1,0 +1,759 @@
+{
+  "info": {
+    "_postman_id": "fit4110-lab03-core-business",
+    "name": "FIT4110 Lab03 - Core Business Contract Tests",
+    "description": "Postman Collection cho Buổi 3 của Nhóm 12: Core Business service. Bao gồm các thư mục Functional, Auth, Negative, Boundary, Consumer-side Smoke test và Local-only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const prefix = pm.environment.get('tracePrefix') || 'fit4110-lab03';",
+          "pm.variables.set('traceId', prefix + '-' + Date.now());",
+          "pm.request.headers.upsert({ key: 'X-Trace-Id', value: pm.variables.get('traceId') });"
+        ]
+      }
+    }
+  ],
+  "variable": [],
+  "item": [
+    {
+      "name": "00_Health",
+      "item": [
+        {
+          "name": "GET /health - service is alive",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Kiểm tra trạng thái service của Core Business"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has service status', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status', 'ok');",
+                  "  pm.expect(json).to.have.property('service', 'core-business');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01_Functional",
+      "item": [
+        {
+          "name": "POST /access/check - ALLOW decision",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-001\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Kiểm tra quyền truy cập thành công và được ALLOW"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has ALLOW decision fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('decision', 'ALLOW');",
+                  "  pm.expect(json).to.have.property('decisionId');",
+                  "  pm.expect(json).to.have.property('cardId', 'RFID-2026-001');",
+                  "  pm.expect(json).to.have.property('gateId', 'GATE-01');",
+                  "  pm.expect(json).to.have.property('policyId', 'POL-001');",
+                  "  pm.expect(json).to.have.property('reasonCode', 'VALID_CARD');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /access/check - DENY decision",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "example=denied" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-003\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:01:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Kiểm tra quyền truy cập và bị DENY (thẻ hết hạn)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has DENY decision fields', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('decision', 'DENY');",
+                  "  pm.expect(json).to.have.property('decisionId');",
+                  "  pm.expect(json).to.have.property('cardId', 'RFID-2026-003');",
+                  "  pm.expect(json).to.have.property('gateId', 'GATE-01');",
+                  "  pm.expect(json).to.have.property('reasonCode', 'CARD_EXPIRED');",
+                  "  pm.expect(json).to.have.property('reasonDetail');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /policies/access - get list of access policies",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policies/access?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["policies", "access"],
+              "query": [{ "key": "limit", "value": "10" }]
+            },
+            "description": "Lấy danh sách các access policy"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response contains items array', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('items');",
+                  "  pm.expect(json.items).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /policies/access/{id} - get access policy details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policies/access/POL-001",
+              "host": ["{{baseUrl}}"],
+              "path": ["policies", "access", "POL-001"]
+            },
+            "description": "Lấy chi tiết policy theo ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has policy detail', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('policyId', 'POL-001');",
+                  "  pm.expect(json).to.have.property('name');",
+                  "  pm.expect(json).to.have.property('scope');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /decisions - get list of decisions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/decisions?limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["decisions"],
+              "query": [{ "key": "limit", "value": "5" }]
+            },
+            "description": "Lấy danh sách lịch sử quyết định truy cập"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response contains items array', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('items');",
+                  "  pm.expect(json.items).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /decisions/{id} - get decision details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/decisions/0196fb3d-4ad7-7d1e-9f49-5d5148d2babc",
+              "host": ["{{baseUrl}}"],
+              "path": ["decisions", "0196fb3d-4ad7-7d1e-9f49-5d5148d2babc"]
+            },
+            "description": "Lấy chi tiết một quyết định theo ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has correct decisionId', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('decisionId', '0196fb3d-4ad7-7d1e-9f49-5d5148d2babc');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02_Auth",
+      "item": [
+        {
+          "name": "POST /access/check - missing token is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-001\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Gọi check access nhưng không truyền token"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const env = pm.environment.get('env') || 'mock';",
+                  "if (env === 'mock') {",
+                  "  pm.test('Skipped on mock: Prism does not enforce auth', function () {",
+                  "    pm.expect(true).to.eql(true);",
+                  "  });",
+                  "} else {",
+                  "  pm.test('Missing token returns 401 or 403', function () {",
+                  "    pm.expect([401, 403]).to.include(pm.response.code);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /access/check - invalid token is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer invalid-token" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-001\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Gọi check access với token sai"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const env = pm.environment.get('env') || 'mock';",
+                  "if (env === 'mock') {",
+                  "  pm.test('Skipped on mock: Prism does not validate JWT', function () {",
+                  "    pm.expect(true).to.eql(true);",
+                  "  });",
+                  "} else {",
+                  "  pm.test('Invalid token returns 401 or 403', function () {",
+                  "    pm.expect([401, 403]).to.include(pm.response.code);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /policies/access - missing token is rejected",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/policies/access",
+              "host": ["{{baseUrl}}"],
+              "path": ["policies", "access"]
+            },
+            "description": "Lấy policies nhưng thiếu token"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const env = pm.environment.get('env') || 'mock';",
+                  "if (env === 'mock') {",
+                  "  pm.test('Skipped on mock: Prism does not enforce auth', function () {",
+                  "    pm.expect(true).to.eql(true);",
+                  "  });",
+                  "} else {",
+                  "  pm.test('Missing token returns 401 or 403', function () {",
+                  "    pm.expect([401, 403]).to.include(pm.response.code);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03_Negative",
+      "item": [
+        {
+          "name": "POST /access/check - missing required field returns 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=400" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Thiếu cardId bắt buộc"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid payload returns client error', function () {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('Error response follows ProblemDetails shape', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('title');",
+                  "  pm.expect(json).to.have.property('status');",
+                  "  pm.expect(json.status).to.be.within(400, 599);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /access/check - invalid cardId format returns 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=400" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"12345\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "cardId không khớp regex pattern"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid cardId returns client error', function () {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('Error response has detail', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('detail');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /policies/access/{id} - invalid ID pattern returns 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=400" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policies/access/POL-invalid",
+              "host": ["{{baseUrl}}"],
+              "path": ["policies", "access", "POL-invalid"]
+            },
+            "description": "policyId sai định dạng pattern"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid policyId returns client error', function () {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /policies/access/{id} - not found returns 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=404" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policies/access/POL-999",
+              "host": ["{{baseUrl}}"],
+              "path": ["policies", "access", "POL-999"]
+            },
+            "description": "ID hợp lệ nhưng không tồn tại"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Non-existing policyId returns 404', function () {",
+                  "  pm.expect(pm.response.code).to.eql(404);",
+                  "});",
+                  "pm.test('Error response follows ProblemDetails', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status', 404);",
+                  "  pm.expect(json).to.have.property('title');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04_Boundary_Reliability",
+      "item": [
+        {
+          "name": "POST /access/check - boundary direction invalid",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=400" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-001\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"INVALID_DIR\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "direction không nằm trong enum IN/OUT"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Boundary validation for direction returns 400 or 422', function () {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /access/check - boundary timestamp in future",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=422" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-001\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2030-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Thời điểm quẹt thẻ trong tương lai"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Future timestamp returns 422 Unprocessable Entity', function () {",
+                  "  pm.expect(pm.response.code).to.eql(422);",
+                  "});",
+                  "pm.test('Response message matches validation rule', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('detail');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /policies/access - limit above max is rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" },
+              { "key": "Prefer", "value": "code=400" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/policies/access?limit=101",
+              "host": ["{{baseUrl}}"],
+              "path": ["policies", "access"],
+              "query": [{ "key": "limit", "value": "101" }]
+            },
+            "description": "limit = 101 lớn hơn maximum 100"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Limit above max returns client error', function () {",
+                  "  pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05_Consumer_side_Smoke",
+      "item": [
+        {
+          "name": "Consumer smoke - Core calls AI Vision face-match",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"IMAGE_REF\",\n  \"traceId\": \"0196fb3d-4ad7-7d1e-9f49-5d5148d2babc\",\n  \"imageRef\": \"https://storage.campus.local/frames/frame-001.jpg\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{aiVisionMockUrl}}/vision/face-match",
+              "host": ["{{aiVisionMockUrl}}"],
+              "path": ["vision", "face-match"]
+            },
+            "description": "Consumer-side smoke test: Core Business gọi API mock của AI Vision (service phụ thuộc)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Consumer receives success from AI Vision mock', function () {",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "pm.test('Response matches FaceMatchResult schema', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('matchId');",
+                  "  pm.expect(json).to.have.property('decision');",
+                  "  pm.expect(json).to.have.property('confidence');",
+                  "  pm.expect(json.confidence).to.be.within(0, 1);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06_Local_only_NonFunctional",
+      "item": [
+        {
+          "name": "POST /access/check - local response time under 200ms",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cardId\": \"RFID-2026-001\",\n  \"gateId\": \"GATE-01\",\n  \"direction\": \"IN\",\n  \"timestamp\": \"2026-05-15T08:00:00Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access/check",
+              "host": ["{{baseUrl}}"],
+              "path": ["access", "check"]
+            },
+            "description": "Kiểm tra SLA response time trên local service (không chạy trên mock)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const env = pm.environment.get('env') || 'mock';",
+                  "if (env === 'local') {",
+                  "  pm.test('Local service responds under 200ms', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(200);",
+                  "  });",
+                  "} else {",
+                  "  pm.test('Skipped on mock: mock latency is not evidence of real service reliability', function () {",
+                  "    pm.expect(true).to.eql(true);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

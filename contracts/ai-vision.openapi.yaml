@@ -1,27 +1,39 @@
 openapi: 3.1.0
 info:
-  title: Smart Campus — AI Vision API
-  version: 0.3.0
+  title: Smart Campus — AI Vision Service
+  version: 1.0.0
   description: |
-    Contract mock tối thiểu cho consumer-side smoke test trong FIT4110 Lab 03.
-    File này giúp Camera Stream hoặc Core Business gọi thử AI Vision khi service thật chưa hoàn thiện.
+    Hợp đồng API giữa Core Business (Consumer)
+    và AI Vision (Provider) — Cặp 02.
+
+    AI Vision cung cấp khả năng phân tích ảnh, nhận diện khuôn mặt
+    và trả kết quả detect cho Core Business để ra quyết định nghiệp vụ.
+  contact:
+    name: FIT4110 Teaching Team
+    email: fit4110@example.edu.vn
+
 servers:
-  - url: http://localhost:4011
-    description: Prism mock server for AI Vision
+  - url: http://localhost:4010
+    description: Prism mock server
+  - url: https://api.campus.local
+    description: Class network placeholder
+
 tags:
+  - name: health
+    description: Kiểm tra trạng thái service
   - name: vision
-    description: Image detection
-  - name: system
-    description: Health and runtime information
+    description: Phân tích ảnh và face match
+
 security:
   - bearerAuth: []
+
 paths:
   /health:
     get:
-      tags: [system]
-      operationId: getVisionHealth
-      summary: Kiểm tra trạng thái AI Vision mock
-      description: Public health check dùng để kiểm tra mock AI Vision đã sẵn sàng.
+      operationId: getHealth
+      summary: Kiểm tra trạng thái AI Vision service
+      description: Endpoint kiểm tra service còn hoạt động. Không yêu cầu xác thực.
+      tags: [health]
       security: []
       responses:
         "200":
@@ -29,74 +41,219 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthResponse"
+                $ref: "#/components/schemas/HealthStatus"
               examples:
                 ok:
                   value:
                     status: ok
                     service: ai-vision
-                    version: 0.3.0
+                    time: "2026-05-10T08:00:00Z"
 
-  /detect:
+  /vision/face-match:
     post:
+      operationId: faceMatch
+      summary: So khớp khuôn mặt
+      description: |
+        Core Business gửi yêu cầu so khớp khuôn mặt.
+        Request có thể là URL ảnh (ImageRefRequest) hoặc vector embedding (EmbeddingRequest).
+        AI Vision trả kết quả match gồm confidence, decision và modelVersion.
       tags: [vision]
-      operationId: detectImage
-      summary: Phát hiện đối tượng trong ảnh
-      description: Endpoint mock tối thiểu để consumer kiểm tra luồng Camera/Core gọi AI Vision.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DetectionRequest"
+              $ref: "#/components/schemas/FaceMatchRequest"
             examples:
-              valid_url:
+              imageRef:
+                summary: Gửi URL ảnh
                 value:
-                  camera_id: CAM01
-                  image_url: https://example.com/frame.jpg
+                  requestType: IMAGE_REF
+                  traceId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                  imageRef: https://storage.campus.local/frames/frame-001.jpg
+              embedding:
+                summary: Gửi vector embedding
+                value:
+                  requestType: EMBEDDING
+                  traceId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babd
+                  embedding: [0.12, 0.45, 0.78]
       responses:
         "200":
-          description: Kết quả nhận diện
+          description: Kết quả so khớp khuôn mặt
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DetectionResponse"
+                $ref: "#/components/schemas/FaceMatchResult"
               examples:
-                detected:
+                matched:
                   value:
-                    detection_id: DET001
-                    camera_id: CAM01
-                    label: person
-                    confidence: 0.91
-                    risk_level: medium
+                    matchId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                    traceId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                    decision: MATCH
+                    confidence: 0.97
+                    subjectId: STUDENT-2026-001
+                    reason: 'No details'
+                    modelVersion: v2.1.0
+                    processedAt: "2026-05-10T08:00:00Z"
+                lowConfidence:
+                  value:
+                    matchId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babe
+                    traceId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babe
+                    decision: LOW_CONFIDENCE
+                    confidence: 0.45
+                    subjectId: 'STUDENT-2026-999'
+                    reason: Chất lượng ảnh thấp, không đủ độ sáng
+                    modelVersion: v2.1.0
+                    processedAt: "2026-05-10T08:01:00Z"
         "400":
-          description: Request không hợp lệ
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-              examples:
-                invalid_image:
-                  value:
-                    type: https://smart-campus.local/problems/invalid-image
-                    title: Invalid image
-                    status: 400
-                    detail: image_url or image_base64 is required
-                    instance: /detect
+          $ref: "#/components/responses/BadRequest"
         "401":
-          description: Thiếu hoặc sai token
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /vision/detections/{detectionId}:
+    get:
+      operationId: getDetectionById
+      summary: Lấy kết quả detection theo ID
+      description: |
+        Core Business lấy chi tiết một kết quả detection theo detectionId.
+        Dùng để audit hoặc lấy kết quả sau khi Camera gửi frame lên AI Vision.
+      tags: [vision]
+      parameters:
+        - $ref: "#/components/parameters/DetectionId"
+      responses:
+        "200":
+          description: Chi tiết kết quả detection
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/ProblemDetails"
+                $ref: "#/components/schemas/Detection"
               examples:
-                unauthorized:
+                found:
                   value:
-                    type: https://smart-campus.local/problems/unauthorized
-                    title: Unauthorized
-                    status: 401
-                    detail: Missing or invalid bearer token
-                    instance: /detect
+                    detectionId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                    sourceDeviceId: CAMERA-01
+                    objects:
+                      - label: person
+                        confidence: 0.95
+                        boundingBox:
+                          x: 10
+                          y: 20
+                          width: 100
+                          height: 200
+                    overallConfidence: 0.95
+                    riskLevel: LOW
+                    modelVersion: v2.1.0
+                    detectedAt: "2026-05-10T08:00:00Z"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /vision/detections:
+    get:
+      operationId: listDetections
+      summary: Lấy danh sách kết quả detection
+      description: Lấy danh sách toàn bộ các kết quả detection gần đây với cursor-based pagination.
+      tags: [vision]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Danh sách kết quả detection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DetectionPage"
+              examples:
+                firstPage:
+                  value:
+                    items:
+                      - detectionId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                        sourceDeviceId: CAMERA-01
+                        objects:
+                          - label: person
+                            confidence: 0.95
+                            boundingBox:
+                              x: 10
+                              y: 20
+                              width: 100
+                              height: 200
+                        overallConfidence: 0.95
+                        riskLevel: LOW
+                        modelVersion: v2.1.0
+                        detectedAt: "2026-05-10T08:00:00Z"
+                    nextCursor: ''
+                    hasMore: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /vision/results/recent:
+    get:
+      deprecated: true
+      operationId: getRecentResults
+      summary: Lấy danh sách kết quả gần đây
+      description: |
+        Core Business lấy danh sách kết quả face-match hoặc detection gần đây
+        để audit hoặc hiển thị dashboard. Hỗ trợ cursor-based pagination.
+      tags: [vision]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Danh sách kết quả gần đây
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisionResultPage"
+              examples:
+                firstPage:
+                  value:
+                    items:
+                      - matchId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                        traceId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                        decision: MATCH
+                        confidence: 0.97
+                        subjectId: STUDENT-2026-001
+                        reason: 'No details'
+                        modelVersion: v2.1.0
+                        processedAt: "2026-05-10T08:00:00Z"
+                    nextCursor: ''
+                    hasMore: false
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+webhooks:
+  detectionCompleted:
+    post:
+      operationId: onDetectionCompleted
+      summary: Webhook khi AI Vision hoàn tất phân tích
+      description: AI Vision phát sự kiện khi hoàn tất detection, Core Business nhận để xử lý tiếp.
+      tags: [vision]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Detection"
+      responses:
+        "200":
+          description: Consumer đã nhận webhook
 
 components:
   securitySchemes:
@@ -105,76 +262,409 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    DetectionId:
+      name: detectionId
+      in: path
+      required: true
+      description: UUID của kết quả detection.
+      schema:
+        type: string
+        format: uuid
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Cursor dùng để lấy trang tiếp theo.
+      schema:
+        type: string
+        nullable: true
+        minLength: 1
+        maxLength: 200
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Số item tối đa mỗi trang.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
   schemas:
-    DetectionRequest:
+    HealthStatus:
       type: object
-      required: [camera_id]
+      additionalProperties: false
+      required: [status, service, time]
       properties:
-        camera_id:
+        status:
           type: string
-          minLength: 3
-          example: CAM01
-        image_url:
+          enum: [ok]
+          description: Trạng thái service.
+          example: ok
+        service:
+          type: string
+          minLength: 2
+          maxLength: 80
+          description: Tên service.
+          example: ai-vision
+        time:
+          type: string
+          format: date-time
+          description: Thời điểm kiểm tra.
+          example: "2026-05-10T08:00:00Z"
+
+    FaceMatchRequest:
+      oneOf:
+        - $ref: "#/components/schemas/ImageRefRequest"
+        - $ref: "#/components/schemas/EmbeddingRequest"
+      discriminator:
+        propertyName: requestType
+        mapping:
+          IMAGE_REF: "#/components/schemas/ImageRefRequest"
+          EMBEDDING: "#/components/schemas/EmbeddingRequest"
+
+    ImageRefRequest:
+      type: object
+      additionalProperties: false
+      required: [requestType, traceId, imageRef]
+      properties:
+        requestType:
+          type: string
+          const: IMAGE_REF
+          description: Loại request.
+          example: IMAGE_REF
+        traceId:
+          type: string
+          format: uuid
+          description: ID để audit và trace request.
+        imageRef:
           type: string
           format: uri
-          example: https://example.com/frame.jpg
-        image_base64:
-          type: string
-          description: Chuỗi base64 nếu không dùng image_url
+          minLength: 10
+          maxLength: 500
+          description: URL ảnh cần phân tích.
+          example: https://storage.campus.local/frames/frame-001.jpg
 
-    DetectionResponse:
+    EmbeddingRequest:
       type: object
-      required: [detection_id, label, confidence, risk_level]
+      additionalProperties: false
+      required: [requestType, traceId, embedding]
       properties:
-        detection_id:
+        requestType:
           type: string
-          example: DET001
-        camera_id:
+          const: EMBEDDING
+          description: Loại request.
+          example: EMBEDDING
+        traceId:
           type: string
-          example: CAM01
+          format: uuid
+          description: ID để audit và trace request.
+        embedding:
+          type: array
+          minItems: 1
+          maxItems: 2048
+          items:
+            type: number
+            minimum: -1
+            maximum: 1
+          description: Vector embedding khuôn mặt.
+
+    FaceMatchResult:
+      type: object
+      additionalProperties: false
+      required:
+        [matchId, traceId, decision, confidence, modelVersion, processedAt]
+      properties:
+        matchId:
+          type: string
+          format: uuid
+          description: UUID kết quả match.
+        traceId:
+          type: string
+          format: uuid
+          description: Trace lại request gốc.
+        decision:
+          type: string
+          enum: [MATCH, NO_MATCH, LOW_CONFIDENCE]
+          description: Quyết định của AI Vision.
+          example: MATCH
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Độ tin cậy từ 0.0 đến 1.0.
+          example: 0.97
+        subjectId:
+          type: string
+          nullable: true
+          minLength: 3
+          maxLength: 80
+          description: ID đối tượng nhận dạng được, null nếu không match.
+          example: STUDENT-2026-001
+        reason:
+          type: string
+          nullable: true
+          maxLength: 300
+          description: Lý do khi decision là LOW_CONFIDENCE hoặc NO_MATCH.
+        modelVersion:
+          type: string
+          minLength: 3
+          maxLength: 20
+          description: Phiên bản model AI dùng để xử lý.
+          example: v2.1.0
+        processedAt:
+          type: string
+          format: date-time
+          description: Thời điểm AI Vision xử lý xong.
+          example: "2026-05-10T08:00:00Z"
+
+    DetectedObject:
+      type: object
+      additionalProperties: false
+      required: [label, confidence]
+      properties:
         label:
           type: string
-          enum: [person, vehicle, unknown]
+          minLength: 1
+          maxLength: 80
+          description: Nhãn đối tượng phát hiện.
           example: person
         confidence:
           type: number
           minimum: 0
           maximum: 1
-          example: 0.91
-        risk_level:
-          type: string
-          enum: [low, medium, high]
-          example: medium
+          description: Độ tin cậy nhận diện đối tượng.
+          example: 0.95
+        boundingBox:
+          type: object
+          additionalProperties: false
+          required: [x, y, width, height]
+          properties:
+            x:
+              type: integer
+              minimum: 0
+            y:
+              type: integer
+              minimum: 0
+            width:
+              type: integer
+              minimum: 1
+            height:
+              type: integer
+              minimum: 1
 
-    HealthResponse:
+    Detection:
       type: object
-      required: [status, service, version]
+      additionalProperties: false
+      required:
+        [
+          detectionId,
+          sourceDeviceId,
+          objects,
+          overallConfidence,
+          modelVersion,
+          detectedAt,
+        ]
       properties:
-        status:
+        detectionId:
           type: string
-          enum: [ok]
-          example: ok
-        service:
+          format: uuid
+          description: UUID kết quả detection.
+        sourceDeviceId:
           type: string
-          example: ai-vision
-        version:
+          minLength: 2
+          maxLength: 80
+          description: ID thiết bị nguồn (camera).
+          example: CAMERA-01
+        objects:
+          type: array
+          minItems: 0
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/DetectedObject"
+          description: Danh sách đối tượng phát hiện.
+        overallConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Độ tin cậy tổng thể.
+          example: 0.95
+        riskLevel:
           type: string
-          example: 0.3.0
+          nullable: true
+          enum: [LOW, MEDIUM, HIGH]
+          description: Mức độ rủi ro, null nếu chưa đánh giá.
+          example: LOW
+        modelVersion:
+          type: string
+          minLength: 3
+          maxLength: 20
+          description: Phiên bản model AI.
+          example: v2.1.0
+        detectedAt:
+          type: string
+          format: date-time
+          description: Thời điểm phát hiện.
 
-    ProblemDetails:
+    VisionResultPage:
       type: object
-      required: [type, title, status, detail]
+      additionalProperties: false
+      required: [items, nextCursor, hasMore]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/FaceMatchResult"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor trang tiếp theo, null nếu hết dữ liệu.
+        hasMore:
+          type: boolean
+          description: Còn dữ liệu ở trang sau hay không.
+          example: false
+
+    DetectionPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, hasMore]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/Detection"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor trang tiếp theo, null nếu hết dữ liệu.
+        hasMore:
+          type: boolean
+          description: Còn dữ liệu ở trang sau hay không.
+          example: false
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status]
       properties:
         type:
           type: string
           format: uri
+          description: URI định danh loại lỗi.
+          example: https://campus.local/errors/validation
         title:
           type: string
+          minLength: 3
+          maxLength: 120
+          description: Tiêu đề lỗi ngắn gọn.
+          example: Dữ liệu không hợp lệ
         status:
           type: integer
           minimum: 400
           maximum: 599
+          description: HTTP status code.
+          example: 400
         detail:
           type: string
+          nullable: true
+          maxLength: 500
+          description: Mô tả chi tiết lỗi.
+          example: Field imageRef không đúng định dạng URI
         instance:
           type: string
+          nullable: true
+          format: uri
+          description: URI của request gây lỗi.
+          example: https://campus.local/vision/face-match
+        errors:
+          type: array
+          minItems: 0
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, code, message]
+            properties:
+              field:
+                type: string
+                minLength: 1
+                maxLength: 80
+                example: imageRef
+              code:
+                type: string
+                minLength: 2
+                maxLength: 80
+                example: INVALID_URI
+              message:
+                type: string
+                minLength: 3
+                maxLength: 200
+                example: imageRef phải là URI hợp lệ
+
+  responses:
+    BadRequest:
+      description: Dữ liệu sai định dạng
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: https://campus.local/errors/validation
+            title: Dữ liệu không hợp lệ
+            status: 400
+            detail: Payload không đúng JSON Schema
+            instance: https://campus.local/vision/face-match
+            errors:
+              - field: requestType
+                code: ENUM_MISMATCH
+                message: requestType phải là IMAGE_REF hoặc EMBEDDING
+
+    Unauthorized:
+      description: Thiếu hoặc sai thông tin xác thực
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          example:
+            type: https://campus.local/errors/unauthorized
+            title: Chưa xác thực
+            status: 401
+            detail: Thiếu Bearer token
+            instance: https://campus.local/vision/face-match
+            errors: []
+
+    Forbidden:
+      description: Không có quyền thực hiện thao tác
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    NotFound:
+      description: Resource không tồn tại
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    UnprocessableEntity:
+      description: Payload đúng định dạng nhưng không hợp lệ về nghiệp vụ
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    InternalServerError:
+      description: Lỗi không mong muốn phía server
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"

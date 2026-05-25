@@ -1,6 +1,16 @@
 ID,Folder,Endpoint,Method,Scenario,Input file/body,Expected status,Expected response check,Type,Pass/Fail,Evidence
-TC01,Functional,/health,GET,Service is alive,-,200,status=ok,functional,,
-TC02,Functional,/readings,POST,Create reading happy path,mock-data/sensor-reading-valid.json,201,"has reading_id, accepted=true",functional,,
-TC03,Negative,/readings,POST,Missing device_id,mock-data/sensor-reading-invalid-missing-device.json,400,Problem Details,negative,,
-TC04,Auth,/readings,POST,Missing token,mock-data/sensor-reading-valid.json,401,Problem Details,auth,,
-TC05,Boundary,/readings,POST,High temperature boundary,mock-data/sensor-reading-boundary.json,201/400,documented behavior,boundary,,
+TC01,00_Health,/health,GET,Service is alive,-,200,status=ok service=core-business,functional,Pass,Newman HTML/CLI
+TC02,01_Functional,/access/check,POST,ALLOW access check happy path,mock-data/access-check-valid.json,200,decision=ALLOW policyId=POL-001,functional,Pass,Newman HTML/CLI
+TC03,01_Functional,/access/check,POST,DENY access check due to expired card,mock-data/access-check-denied.json,200,decision=DENY reasonCode=CARD_EXPIRED,functional,Pass,Newman HTML/CLI
+TC04,01_Functional,/policies/access,GET,Get access policies list,-,200,has items array,functional,Pass,Newman HTML/CLI
+TC05,01_Functional,/policies/access/{policyId},GET,Get specific policy POL-001,-,200,policyId=POL-001 name scope,functional,Pass,Newman HTML/CLI
+TC06,01_Functional,/decisions,GET,Get access decision logs,-,200,has items array,functional,Pass,Newman HTML/CLI
+TC07,01_Functional,/decisions/{decisionId},GET,Get specific decision record,-,200,decisionId=0196fb3d-4ad7-7d1e-9f49-5d5148d2babc,functional,Pass,Newman HTML/CLI
+TC08,02_Auth,/access/check,POST,Missing token is rejected on local,-,401,skipped on mock / 401 on local,auth,Pass,Newman HTML/CLI
+TC09,02_Auth,/access/check,POST,Invalid token is rejected on local,-,401,skipped on mock / 401 on local,auth,Pass,Newman HTML/CLI
+TC10,03_Negative,/access/check,POST,Missing cardId returns 400,mock-data/access-check-invalid-missing-card.json,400,Problem Details structure,negative,Pass,Newman HTML/CLI
+TC11,03_Negative,/access/check,POST,Invalid cardId format returns 400,cardId=12345,400,Problem Details with detail,negative,Pass,Newman HTML/CLI
+TC12,04_Boundary_Reliability,/access/check,POST,Boundary invalid direction returns 400,direction=INVALID_DIR,400,status=400 or 422,boundary,Pass,Newman HTML/CLI
+TC13,04_Boundary_Reliability,/access/check,POST,Boundary future timestamp returns 422,mock-data/access-check-boundary.json,422,status=422 error details,boundary,Pass,Newman HTML/CLI
+TC14,05_Consumer_side_Smoke,/vision/face-match,POST,Consumer smoke Core calls AI Vision mock,-,200,returns matchId and confidence,smoke,Pass,Newman HTML/CLI
+TC15,06_Local_only_NonFunctional,/access/check,POST,Response time SLA check under 200ms,-,200,skipped on mock / responseTime < 200ms,non-functional,Pass,Newman HTML/CLI

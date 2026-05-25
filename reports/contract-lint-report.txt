@@ -1,0 +1,8 @@
+> fit4110_lab03_postman_mock_testing@0.3.0 lint:contracts
+> spectral lint contracts/*.yaml --fail-severity error
+
+
+c:/DVKN-CNNT/lab3/fit4110-lab03-nhom_12/contracts/core-business.openapi.yaml
+ 755:15  warning  oas3-unused-component  Potentially unused component has been detected.  components.responses.Forbidden
+
+✖ 1 problem (0 errors, 1 warning, 0 infos, 0 hints)
